@@ -189,7 +189,7 @@ class PanelTests(unittest.TestCase):
         self.assertEqual(p.groups()[0]['failed_ips'],{})
     def test_port_import_http_succeeds_while_probe_is_running(self):
         node=NODE
-        original=p.prepare_port_groups(dict(domain='busy',node=node,text='1.1.1.1:443'),[])[0]
+        original=p.prepare_port_groups(dict(domain='busy',zone='a'*32,node=node,text='1.1.1.1:443'),[])[0]
         p.put(original)
         started=threading.Event();release=threading.Event()
         server=p.ThreadingHTTPServer(('127.0.0.1',0),p.Handler);server.password='test-password'
@@ -201,7 +201,7 @@ class PanelTests(unittest.TestCase):
             with patch.object(p,'probe',side_effect=slow_probe):
                 self.assertTrue(p.run([original['id']],write=False))
                 self.assertTrue(started.wait(2))
-                body=dict(domain='busy',node=node,text='2.2.2.2:443\n3.3.3.3 8443')
+                body=dict(domain='busy',zone='a'*32,node=node,text='2.2.2.2:443\n3.3.3.3 8443')
                 req=urllib.request.Request('http://127.0.0.1:'+str(server.server_port)+'/api/import-ports',data=json.dumps(body).encode(),headers={'Authorization':'Bearer test-password','Content-Type':'application/json'})
                 with urllib.request.urlopen(req,timeout=2) as response:
                     self.assertEqual(response.status,200);self.assertEqual(len(json.load(response)['groups']),2)
@@ -214,10 +214,10 @@ class PanelTests(unittest.TestCase):
         finally:
             release.set();server.shutdown();server.server_close();thread.join(2)
     def test_runtime_write_preserves_multiple_concurrent_appends(self):
-        original=p.prepare_port_groups(dict(domain='append',node=NODE,text='1.1.1.1:443'),[])[0]
+        original=p.prepare_port_groups(dict(domain='append',zone='a'*32,node=NODE,text='1.1.1.1:443'),[])[0]
         p.put(original)
-        p.import_port_groups(dict(domain='append',node=NODE,text='2.2.2.2:443'))
-        p.import_port_groups(dict(domain='append',node=NODE,text='3.3.3.3:443'))
+        p.import_port_groups(dict(domain='append',zone='a'*32,node=NODE,text='2.2.2.2:443'))
+        p.import_port_groups(dict(domain='append',zone='a'*32,node=NODE,text='3.3.3.3:443'))
         original['current']='1.1.1.1';p.put_runtime(original)
         self.assertEqual(p.groups()[0]['ips'],['1.1.1.1','2.2.2.2','3.3.3.3'])
     def test_regular_config_write_can_still_remove_ip(self):
@@ -233,9 +233,9 @@ class PanelTests(unittest.TestCase):
         second=p.groups()[1];second['error']='updated';p.put(second)
         self.assertEqual([g['id'] for g in p.groups()],['first','second','third'])
     def test_batch_append_keeps_existing_order_and_new_groups_at_end(self):
-        p.import_port_groups(dict(domain='first',node=NODE,text='1.1.1.1:443'))
-        p.import_port_groups(dict(domain='second',node=NODE,text='2.2.2.2:443'))
-        p.import_port_groups(dict(domain='first',node=NODE,text='3.3.3.3:443\n4.4.4.4:8443'))
+        p.import_port_groups(dict(domain='first',zone='a'*32,node=NODE,text='1.1.1.1:443'))
+        p.import_port_groups(dict(domain='second',zone='a'*32,node=NODE,text='2.2.2.2:443'))
+        p.import_port_groups(dict(domain='first',zone='a'*32,node=NODE,text='3.3.3.3:443\n4.4.4.4:8443'))
         self.assertEqual([g['domain'] for g in p.groups()],['first-1.example.com','second-1.example.com','first-2.example.com'])
     def test_latency_selection_chooses_fastest_instead_of_next_ip(self):
         def result(g,ip,s):return {'ip':ip,'ok':True,'ms':{'1.1.1.1':35,'2.2.2.2':100,'3.3.3.3':5}[ip]}
@@ -260,21 +260,21 @@ class PanelTests(unittest.TestCase):
     def test_saved_templates_can_be_selected_separately_for_each_port(self):
         first=p.save_template({'name':'443','node':NODE})
         second=p.save_template({'name':'8443','node':NODE.replace('test.example.com','other.example.com')})
-        gs=p.prepare_port_groups(dict(domain='saved',text='1.1.1.1:443\n2.2.2.2:8443',template_443=first['id'],template_8443=second['id']),[])
+        gs=p.prepare_port_groups(dict(domain='saved',zone='a'*32,text='1.1.1.1:443\n2.2.2.2:8443',template_443=first['id'],template_8443=second['id']),[])
         self.assertEqual(p.parse_node(gs[0]['node'])[1]['sni'],'test.example.com')
         self.assertEqual(p.parse_node(gs[1]['node'])[1]['sni'],'other.example.com')
         self.assertEqual(gs[1]['port'],8443)
     def test_template_edits_do_not_modify_existing_groups(self):
         t=p.save_template({'name':'test','node':NODE})
-        gs=p.prepare_port_groups(dict(domain='saved',text='1.1.1.1:443',template_443=t['id']),[])
+        gs=p.prepare_port_groups(dict(domain='saved',zone='a'*32,text='1.1.1.1:443',template_443=t['id']),[])
         p.put(gs[0]);original=p.groups()[0]['node']
         p.save_template(dict(t,node=NODE.replace('test.example.com','changed.example.com')))
         self.assertEqual(p.groups()[0]['node'],original)
     def test_deleted_template_id_is_rejected(self):
-        with self.assertRaises(ValueError):p.prepare_port_groups(dict(domain='saved',text='1.1.1.1:443',template_443='missing'),[])
+        with self.assertRaises(ValueError):p.prepare_port_groups(dict(domain='saved',zone='a'*32,text='1.1.1.1:443',template_443='missing'),[])
     def test_single_group_can_resolve_saved_template(self):
         t=p.save_template({'name':'test','node':NODE})
-        g=p.validate_group(dict(domain='saved',template_id=t['id'],ips=['1.1.1.1']))
+        g=p.validate_group(dict(domain='saved',zone='a'*32,template_id=t['id'],ips=['1.1.1.1']))
         self.assertEqual(g['node'],NODE)
     def test_cloudflare_delete_is_scoped_to_exact_domain_address_records(self):
         records=[{'id':'v4','name':'node.example.com','type':'A'}, {'id':'v6','name':'node.example.com','type':'AAAA'}, {'id':'txt','name':'node.example.com','type':'TXT'}, {'id':'other','name':'other.example.com','type':'A'}]

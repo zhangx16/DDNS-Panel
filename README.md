@@ -35,7 +35,7 @@ SQLite 数据库和密码保存在 Compose 命名卷 `panel-data`，重建容器
 ## 操作
 
 1. 在调度设置录入 Cloudflare API Token。建议仅授予指定 Zone 的 DNS Edit（API 权限名 DNS Write）；每组手动提供 Zone ID，无需列举全部 Zone。
-2. 添加完整子域名、Zone ID、原始 VLESS 链接及独立 IP 池。先不勾选自动执行，使用“测活”验证候选 IP。
+2. 添加自己域名下的完整子域名、对应的 Zone ID、原始 VLESS 链接及独立 IP 池。发布版的简写会补齐示例后缀 `example.com`，实际部署请填写完整域名。先不勾选自动执行，使用“测活”验证候选 IP。
 3. 确认结果后启用自动执行。保存启用的组后将在下一个调度 tick（约 1 秒）开始检测并创建或更新 DNS。也可点击“立即轮换”。
 4. 复制动态域名节点，导入客户端。仅修改 VLESS 的连接地址；原查询参数、SNI、WS Host 和路径均保留。
 
