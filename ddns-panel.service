@@ -1,0 +1,18 @@
+[Unit]
+Description=Local DDNS node rotation panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/ddns-panel
+ExecStart=/usr/bin/python3 /root/ddns-panel/server.py
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=BIND=127.0.0.1
+Environment=PORT=18902
+UMask=0077
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
